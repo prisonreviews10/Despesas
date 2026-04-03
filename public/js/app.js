@@ -8,7 +8,7 @@ let currentFilter = 'all';
 let currentPage = 'dashboard';
 
 const MONTHS_PT = [
-  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+  'Janeiro', 'Fevereiro', 'Marco', 'Abril', 'Maio', 'Junho',
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
 ];
 
@@ -24,23 +24,18 @@ const MONTHS_PT = [
 
   currentUser = JSON.parse(userStr);
   setupUI();
-  loadCategories().then(() => {
-    loadDashboard();
-  });
+  loadCategories().then(() => loadDashboard());
 })();
 
 function setupUI() {
-  // User profile in sidebar
   const avatar = document.getElementById('userAvatar');
-  avatar.style.background = currentUser.avatar_color;
+  avatar.style.background = `linear-gradient(135deg, ${currentUser.avatar_color}, ${currentUser.avatar_color}dd)`;
   avatar.textContent = currentUser.username[0];
-
   document.getElementById('userName').textContent = currentUser.username;
-
   updateMonthLabel();
 }
 
-// ============ API HELPER ============
+// ============ API ============
 async function api(endpoint, options = {}) {
   const res = await fetch(`/api${endpoint}`, {
     ...options,
@@ -52,8 +47,7 @@ async function api(endpoint, options = {}) {
   });
 
   if (res.status === 401) {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    localStorage.clear();
     window.location.href = '/';
     return;
   }
@@ -67,20 +61,23 @@ async function api(endpoint, options = {}) {
 function navigateTo(page) {
   currentPage = page;
 
-  // Update nav items
   document.querySelectorAll('.nav-item').forEach(item => {
     item.classList.toggle('active', item.dataset.page === page);
   });
 
-  // Show/hide pages
   document.querySelectorAll('.page').forEach(p => p.classList.add('hidden'));
-  document.getElementById(`page-${page}`).classList.remove('hidden');
+  const pageEl = document.getElementById(`page-${page}`);
+  pageEl.classList.remove('hidden');
+
+  // Re-trigger animation
+  pageEl.style.animation = 'none';
+  pageEl.offsetHeight; // reflow
+  pageEl.style.animation = '';
 
   // Close mobile sidebar
   document.getElementById('sidebar').classList.remove('open');
   document.getElementById('sidebarOverlay').classList.remove('open');
 
-  // Load page data
   if (page === 'dashboard') loadDashboard();
   else if (page === 'transactions') loadTransactions();
   else if (page === 'fixed') loadFixedExpenses();
@@ -108,6 +105,27 @@ function updateMonthLabel() {
   document.querySelectorAll('.month-label-sync').forEach(el => el.textContent = label);
 }
 
+// ============ ANIMATED COUNTER ============
+function animateValue(element, target) {
+  const duration = 600;
+  const start = performance.now();
+  const startVal = parseFloat(element.dataset.currentValue) || 0;
+
+  element.dataset.currentValue = target;
+
+  function update(now) {
+    const elapsed = now - start;
+    const progress = Math.min(elapsed / duration, 1);
+    // Ease out cubic
+    const eased = 1 - Math.pow(1 - progress, 3);
+    const current = startVal + (target - startVal) * eased;
+    element.textContent = formatCurrency(current);
+    if (progress < 1) requestAnimationFrame(update);
+  }
+
+  requestAnimationFrame(update);
+}
+
 // ============ CATEGORIES ============
 async function loadCategories() {
   try {
@@ -133,23 +151,20 @@ function populateCategorySelect(selectId, type) {
 // ============ DASHBOARD ============
 async function loadDashboard() {
   try {
-    const summary = await api(`/summary?month=${currentMonth}&year=${currentYear}`);
-    const transactions = await api(`/transactions?month=${currentMonth}&year=${currentYear}`);
+    const [summary, transactions] = await Promise.all([
+      api(`/summary?month=${currentMonth}&year=${currentYear}`),
+      api(`/transactions?month=${currentMonth}&year=${currentYear}`)
+    ]);
 
-    // Stats cards
-    document.getElementById('totalIncome').textContent = formatCurrency(summary.totals.income);
-    document.getElementById('totalExpenses').textContent = formatCurrency(summary.totals.expenses);
-    document.getElementById('totalBalance').textContent = formatCurrency(summary.totals.income - summary.totals.expenses);
-    document.getElementById('totalFixed').textContent = formatCurrency(summary.fixedExpensesTotal);
+    // Animated stat cards
+    animateValue(document.getElementById('totalIncome'), summary.totals.income);
+    animateValue(document.getElementById('totalExpenses'), summary.totals.expenses);
+    animateValue(document.getElementById('totalBalance'), summary.totals.income - summary.totals.expenses);
+    animateValue(document.getElementById('totalFixed'), summary.fixedExpensesTotal);
 
-    // Users comparison
     renderUsersComparison(summary.perUser);
-
-    // Category breakdown
     renderCategoryBreakdown(summary.byCategory, summary.totals.expenses);
-
-    // Recent transactions (last 5)
-    renderTransactionList('recentTransactions', transactions.slice(0, 5));
+    renderTransactionList('recentTransactions', transactions.slice(0, 6));
 
   } catch (err) {
     showToast('Erro ao carregar dashboard', 'error');
@@ -158,19 +173,21 @@ async function loadDashboard() {
 
 function renderUsersComparison(perUser) {
   const container = document.getElementById('usersComparison');
-  const users = ['Ivan', 'Rebeca'];
-  const colors = { 'Ivan': '#6C63FF', 'Rebeca': '#FF6B9D' };
+  const users = [
+    { name: 'Ivan', color: '#6C63FF', gradient: 'linear-gradient(135deg, #6C63FF, #5A52E0)' },
+    { name: 'Becky', color: '#FF6B9D', gradient: 'linear-gradient(135deg, #FF6B9D, #E84393)' }
+  ];
 
-  container.innerHTML = users.map(name => {
-    const userData = perUser.filter(p => p.username === name);
+  container.innerHTML = users.map(u => {
+    const userData = perUser.filter(p => p.username === u.name);
     const income = userData.find(d => d.type === 'income')?.total || 0;
     const expenses = userData.find(d => d.type === 'expense')?.total || 0;
-    const color = userData[0]?.avatar_color || colors[name];
+    const balance = income - expenses;
 
     return `
       <div class="user-card">
-        <div class="avatar" style="background:${color}">${name[0]}</div>
-        <div class="name">${name}</div>
+        <div class="avatar" style="background:${u.gradient}">${u.name[0]}</div>
+        <div class="name">${u.name}</div>
         <div class="user-stat">
           <span class="label">Rendimentos</span>
           <span class="value income">${formatCurrency(income)}</span>
@@ -181,8 +198,8 @@ function renderUsersComparison(perUser) {
         </div>
         <div class="user-stat">
           <span class="label">Saldo</span>
-          <span class="value" style="color:${income - expenses >= 0 ? 'var(--success)' : 'var(--danger)'}">
-            ${formatCurrency(income - expenses)}
+          <span class="value" style="color:${balance >= 0 ? 'var(--success)' : 'var(--danger)'}">
+            ${formatCurrency(balance)}
           </span>
         </div>
       </div>
@@ -198,7 +215,7 @@ function renderCategoryBreakdown(byCategory, totalExpenses) {
     container.innerHTML = `
       <div class="empty-state">
         <div class="icon">📊</div>
-        <p>Sem despesas registadas este mês</p>
+        <p>Sem despesas registadas este mes</p>
       </div>
     `;
     return;
@@ -208,7 +225,7 @@ function renderCategoryBreakdown(byCategory, totalExpenses) {
     const pct = totalExpenses > 0 ? (cat.total / totalExpenses * 100) : 0;
     return `
       <li class="category-item">
-        <div class="category-icon" style="background:${cat.color}20">${cat.icon}</div>
+        <div class="category-icon" style="background:${cat.color}18">${cat.icon}</div>
         <div class="category-info">
           <div class="name">${cat.name}</div>
           <div class="category-bar">
@@ -216,9 +233,21 @@ function renderCategoryBreakdown(byCategory, totalExpenses) {
           </div>
         </div>
         <div class="category-amount">${formatCurrency(cat.total)}</div>
+        <div class="category-pct">${pct.toFixed(0)}%</div>
       </li>
     `;
   }).join('')}</ul>`;
+
+  // Animate bars in
+  setTimeout(() => {
+    container.querySelectorAll('.fill').forEach(bar => {
+      const width = bar.style.width;
+      bar.style.width = '0%';
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => { bar.style.width = width; });
+      });
+    });
+  }, 50);
 }
 
 // ============ TRANSACTIONS ============
@@ -229,7 +258,7 @@ async function loadTransactions() {
     const transactions = await api(url);
     renderTransactionList('allTransactions', transactions);
   } catch (err) {
-    showToast('Erro ao carregar transações', 'error');
+    showToast('Erro ao carregar transacoes', 'error');
   }
 }
 
@@ -248,15 +277,15 @@ function renderTransactionList(containerId, transactions) {
     container.innerHTML = `
       <div class="empty-state">
         <div class="icon">💸</div>
-        <p>Nenhuma transação encontrada</p>
+        <p>Nenhuma transacao encontrada</p>
       </div>
     `;
     return;
   }
 
-  container.innerHTML = transactions.map(t => `
-    <li class="transaction-item">
-      <div class="transaction-icon" style="background:${t.category_color}20">
+  container.innerHTML = transactions.map((t, i) => `
+    <li class="transaction-item" style="animation: pageIn 0.3s ease-out ${i * 0.04}s both">
+      <div class="transaction-icon" style="background:${t.category_color}18">
         ${t.category_icon}
       </div>
       <div class="transaction-details">
@@ -266,7 +295,7 @@ function renderTransactionList(containerId, transactions) {
         </div>
         <div class="meta">
           <span>${t.category_name}</span>
-          <span>•</span>
+          <span>·</span>
           <span>${formatDate(t.date)}</span>
         </div>
       </div>
@@ -292,7 +321,7 @@ function openTransactionModal(data = null) {
   editingTransactionData = data;
   const type = data?.type || 'expense';
 
-  document.getElementById('transactionModalTitle').textContent = data ? 'Editar Transação' : 'Nova Transação';
+  document.getElementById('transactionModalTitle').textContent = data ? 'Editar Transacao' : 'Nova Transacao';
   document.getElementById('transactionId').value = data?.id || '';
   document.getElementById('transactionType').value = type;
   document.getElementById('transactionAmount').value = data?.amount || '';
@@ -300,10 +329,7 @@ function openTransactionModal(data = null) {
   document.getElementById('transactionDesc').value = data?.description || '';
 
   setTransactionType(type);
-
-  if (data) {
-    document.getElementById('transactionCategory').value = data.category_id;
-  }
+  if (data) document.getElementById('transactionCategory').value = data.category_id;
 
   openModal('transactionModal');
 }
@@ -334,17 +360,17 @@ async function saveTransaction() {
   };
 
   if (!data.category_id || !data.amount || !data.date) {
-    showToast('Preenche todos os campos obrigatórios', 'error');
+    showToast('Preenche todos os campos obrigatorios', 'error');
     return;
   }
 
   try {
     if (id) {
       await api(`/transactions/${id}`, { method: 'PUT', body: JSON.stringify(data) });
-      showToast('Transação atualizada!', 'success');
+      showToast('Transacao atualizada!', 'success');
     } else {
       await api('/transactions', { method: 'POST', body: JSON.stringify(data) });
-      showToast('Transação adicionada!', 'success');
+      showToast('Transacao adicionada!', 'success');
     }
 
     closeModal('transactionModal');
@@ -361,16 +387,16 @@ async function editTransaction(id) {
     const t = transactions.find(tr => tr.id === id);
     if (t) openTransactionModal(t);
   } catch (err) {
-    showToast('Erro ao carregar transação', 'error');
+    showToast('Erro ao carregar transacao', 'error');
   }
 }
 
 async function deleteTransaction(id) {
-  if (!confirm('Tens a certeza que queres apagar esta transação?')) return;
+  if (!confirm('Tens a certeza que queres apagar esta transacao?')) return;
 
   try {
     await api(`/transactions/${id}`, { method: 'DELETE' });
-    showToast('Transação apagada', 'success');
+    showToast('Transacao apagada', 'success');
     if (currentPage === 'dashboard') loadDashboard();
     else loadTransactions();
   } catch (err) {
@@ -397,9 +423,9 @@ async function loadFixedExpenses() {
       return;
     }
 
-    container.innerHTML = expenses.map(e => `
-      <div class="fixed-expense-item">
-        <div class="transaction-icon" style="background:${e.category_color}20">
+    container.innerHTML = expenses.map((e, i) => `
+      <div class="fixed-expense-item" style="animation: pageIn 0.3s ease-out ${i * 0.05}s both">
+        <div class="transaction-icon" style="background:${e.category_color}18">
           ${e.category_icon}
         </div>
         <div class="transaction-details">
@@ -411,12 +437,12 @@ async function loadFixedExpenses() {
           </div>
           <div class="meta">
             <span>${e.category_name}</span>
-            ${e.due_day ? `<span>•</span><span class="due-day">Dia ${e.due_day}</span>` : ''}
-            ${e.is_shared ? `<span>•</span><span>${formatCurrency(e.amount / 2)} cada</span>` : ''}
+            ${e.due_day ? `<span>·</span><span class="due-day">Dia ${e.due_day}</span>` : ''}
+            ${e.is_shared ? `<span>·</span><span>${formatCurrency(e.amount / 2)} cada</span>` : ''}
           </div>
         </div>
         <div class="transaction-amount expense">${formatCurrency(e.amount)}</div>
-        <div class="transaction-actions">
+        <div class="transaction-actions" style="opacity:1">
           <button class="btn-icon" onclick="editFixedExpense(${e.id})" title="Editar">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
           </button>
@@ -456,7 +482,7 @@ async function saveFixedExpense() {
   };
 
   if (!data.category_id || !data.description || !data.amount) {
-    showToast('Preenche todos os campos obrigatórios', 'error');
+    showToast('Preenche todos os campos obrigatorios', 'error');
     return;
   }
 
@@ -503,23 +529,29 @@ async function deleteFixedExpense(id) {
 // ============ MODAL UTILS ============
 function openModal(id) {
   document.getElementById(id).classList.add('active');
+  document.body.style.overflow = 'hidden';
 }
 
 function closeModal(id) {
   document.getElementById(id).classList.remove('active');
+  document.body.style.overflow = '';
 }
 
-// Close modal on overlay click
 document.querySelectorAll('.modal-overlay').forEach(overlay => {
   overlay.addEventListener('click', (e) => {
-    if (e.target === overlay) overlay.classList.remove('active');
+    if (e.target === overlay) {
+      overlay.classList.remove('active');
+      document.body.style.overflow = '';
+    }
   });
 });
 
-// Close modal on Escape
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
-    document.querySelectorAll('.modal-overlay.active').forEach(m => m.classList.remove('active'));
+    document.querySelectorAll('.modal-overlay.active').forEach(m => {
+      m.classList.remove('active');
+    });
+    document.body.style.overflow = '';
   }
 });
 
@@ -545,13 +577,22 @@ function showToast(message, type = 'success') {
 
   setTimeout(() => {
     toast.style.opacity = '0';
-    toast.style.transform = 'translateX(100%)';
-    setTimeout(() => toast.remove(), 300);
+    toast.style.transform = 'translateX(120%)';
+    toast.style.transition = 'all 0.4s ease';
+    setTimeout(() => toast.remove(), 400);
   }, 3000);
 }
 
 function logout() {
-  localStorage.removeItem('token');
-  localStorage.removeItem('user');
+  localStorage.clear();
   window.location.href = '/';
 }
+
+// ============ KEYBOARD SHORTCUTS ============
+document.addEventListener('keydown', (e) => {
+  // Ctrl+N or Cmd+N = new transaction (only when no modal open)
+  if ((e.ctrlKey || e.metaKey) && e.key === 'n' && !document.querySelector('.modal-overlay.active')) {
+    e.preventDefault();
+    openTransactionModal();
+  }
+});

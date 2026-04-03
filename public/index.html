@@ -3,53 +3,409 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Despesas - Login</title>
+  <title>Despesas - Entrar</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/css/style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #0f0c29;
+      background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Animated background orbs */
+    .bg-orbs {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      overflow: hidden;
+    }
+
+    .orb {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(80px);
+      opacity: 0.4;
+      animation: float 20s ease-in-out infinite;
+    }
+
+    .orb:nth-child(1) {
+      width: 500px; height: 500px;
+      background: #6C63FF;
+      top: -10%; left: -10%;
+      animation-delay: 0s;
+    }
+
+    .orb:nth-child(2) {
+      width: 400px; height: 400px;
+      background: #FF6B9D;
+      bottom: -15%; right: -10%;
+      animation-delay: -7s;
+      animation-duration: 25s;
+    }
+
+    .orb:nth-child(3) {
+      width: 300px; height: 300px;
+      background: #4ECDC4;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      animation-delay: -14s;
+      animation-duration: 30s;
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translate(0, 0) scale(1); }
+      25% { transform: translate(30px, -50px) scale(1.1); }
+      50% { transform: translate(-20px, 20px) scale(0.95); }
+      75% { transform: translate(40px, 30px) scale(1.05); }
+    }
+
+    /* Particle grid */
+    .grid-bg {
+      position: fixed;
+      inset: 0;
+      z-index: 1;
+      background-image:
+        linear-gradient(rgba(255,255,255,.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.03) 1px, transparent 1px);
+      background-size: 60px 60px;
+    }
+
+    .login-wrapper {
+      position: relative;
+      z-index: 10;
+      width: 100%;
+      max-width: 440px;
+      padding: 20px;
+      animation: fadeUp 0.8s ease-out;
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(30px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .login-card {
+      background: rgba(255, 255, 255, 0.07);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 24px;
+      padding: 48px 40px;
+      box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    }
+
+    .login-brand {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+
+    .login-brand .logo {
+      width: 80px;
+      height: 80px;
+      margin: 0 auto 20px;
+      background: linear-gradient(135deg, #6C63FF, #FF6B9D);
+      border-radius: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 36px;
+      box-shadow: 0 8px 24px rgba(108, 99, 255, 0.4);
+      animation: pulse-glow 3s ease-in-out infinite;
+    }
+
+    @keyframes pulse-glow {
+      0%, 100% { box-shadow: 0 8px 24px rgba(108, 99, 255, 0.4); }
+      50% { box-shadow: 0 8px 40px rgba(108, 99, 255, 0.6), 0 0 60px rgba(108, 99, 255, 0.2); }
+    }
+
+    .login-brand h1 {
+      font-size: 32px;
+      font-weight: 900;
+      color: white;
+      letter-spacing: -0.5px;
+    }
+
+    .login-brand p {
+      color: rgba(255, 255, 255, 0.5);
+      font-size: 14px;
+      margin-top: 6px;
+      font-weight: 400;
+    }
+
+    .form-field {
+      margin-bottom: 24px;
+    }
+
+    .form-field label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: rgba(255, 255, 255, 0.6);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 8px;
+    }
+
+    .input-box {
+      position: relative;
+    }
+
+    .input-box svg {
+      position: absolute;
+      left: 16px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 18px;
+      height: 18px;
+      color: rgba(255, 255, 255, 0.3);
+      transition: color 0.3s;
+      pointer-events: none;
+    }
+
+    .input-box input {
+      width: 100%;
+      padding: 16px 16px 16px 48px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 2px solid rgba(255, 255, 255, 0.08);
+      border-radius: 14px;
+      font-size: 15px;
+      font-family: inherit;
+      color: white;
+      transition: all 0.3s;
+      outline: none;
+    }
+
+    .input-box input::placeholder {
+      color: rgba(255, 255, 255, 0.25);
+    }
+
+    .input-box input:focus {
+      border-color: #6C63FF;
+      background: rgba(108, 99, 255, 0.08);
+      box-shadow: 0 0 0 4px rgba(108, 99, 255, 0.15);
+    }
+
+    .input-box input:focus + svg,
+    .input-box:has(input:focus) svg {
+      color: #6C63FF;
+    }
+
+    .btn-login {
+      width: 100%;
+      padding: 18px;
+      border: none;
+      border-radius: 14px;
+      font-size: 16px;
+      font-weight: 700;
+      font-family: inherit;
+      color: white;
+      cursor: pointer;
+      background: linear-gradient(135deg, #6C63FF 0%, #5A52E0 100%);
+      box-shadow: 0 4px 20px rgba(108, 99, 255, 0.4);
+      transition: all 0.3s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 32px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .btn-login::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, transparent, rgba(255,255,255,0.1), transparent);
+      transform: translateX(-100%);
+      transition: transform 0.5s;
+    }
+
+    .btn-login:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 30px rgba(108, 99, 255, 0.5);
+    }
+
+    .btn-login:hover::before {
+      transform: translateX(100%);
+    }
+
+    .btn-login:active {
+      transform: translateY(0);
+    }
+
+    .btn-login.loading {
+      opacity: 0.7;
+      pointer-events: none;
+    }
+
+    .error-msg {
+      margin-top: 20px;
+      padding: 14px 18px;
+      background: rgba(255, 82, 82, 0.15);
+      border: 1px solid rgba(255, 82, 82, 0.3);
+      color: #FF8A80;
+      border-radius: 12px;
+      font-size: 13px;
+      text-align: center;
+      animation: shake 0.4s ease;
+      display: none;
+    }
+
+    .error-msg.visible {
+      display: block;
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-8px); }
+      75% { transform: translateX(8px); }
+    }
+
+    .login-footer {
+      text-align: center;
+      margin-top: 32px;
+      color: rgba(255, 255, 255, 0.25);
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.5px;
+    }
+
+    .login-footer span {
+      color: rgba(255, 255, 255, 0.4);
+    }
+
+    /* User quick select */
+    .quick-select {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 28px;
+    }
+
+    .quick-user {
+      flex: 1;
+      padding: 14px;
+      border-radius: 14px;
+      border: 2px solid rgba(255, 255, 255, 0.08);
+      background: rgba(255, 255, 255, 0.04);
+      cursor: pointer;
+      transition: all 0.3s;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: white;
+      font-family: inherit;
+    }
+
+    .quick-user:hover {
+      border-color: rgba(255, 255, 255, 0.2);
+      background: rgba(255, 255, 255, 0.08);
+      transform: translateY(-1px);
+    }
+
+    .quick-user.active {
+      border-color: #6C63FF;
+      background: rgba(108, 99, 255, 0.12);
+    }
+
+    .quick-user .avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+
+    .quick-user .name {
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    @media (max-width: 480px) {
+      .login-card { padding: 36px 28px; }
+      .login-brand h1 { font-size: 26px; }
+    }
+  </style>
 </head>
-<body class="login-page">
-  <div class="login-container">
+<body>
+  <div class="bg-orbs">
+    <div class="orb"></div>
+    <div class="orb"></div>
+    <div class="orb"></div>
+  </div>
+  <div class="grid-bg"></div>
+
+  <div class="login-wrapper">
     <div class="login-card">
-      <div class="login-header">
-        <div class="login-logo">
-          <span class="logo-icon">💰</span>
-        </div>
+      <div class="login-brand">
+        <div class="logo">💰</div>
         <h1>Despesas</h1>
-        <p>Gestão de despesas do casal</p>
+        <p>Gestao financeira do casal</p>
       </div>
-      <form id="loginForm" class="login-form">
-        <div class="form-group">
-          <label for="username">Utilizador</label>
-          <div class="input-wrapper">
-            <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-            <input type="text" id="username" placeholder="Ivan ou Rebeca" required autocomplete="username">
-          </div>
-        </div>
-        <div class="form-group">
-          <label for="password">Palavra-passe</label>
-          <div class="input-wrapper">
-            <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-            <input type="password" id="password" placeholder="••••••••" required autocomplete="current-password">
-          </div>
-        </div>
-        <button type="submit" class="btn btn-primary btn-full">
-          <span>Entrar</span>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+
+      <div class="quick-select">
+        <button class="quick-user" onclick="selectUser('Ivan')">
+          <div class="avatar" style="background:linear-gradient(135deg,#6C63FF,#5A52E0)">I</div>
+          <span class="name">Ivan</span>
         </button>
-        <div id="loginError" class="error-message hidden"></div>
+        <button class="quick-user" onclick="selectUser('Becky')">
+          <div class="avatar" style="background:linear-gradient(135deg,#FF6B9D,#E84393)">B</div>
+          <span class="name">Becky</span>
+        </button>
+      </div>
+
+      <form id="loginForm">
+        <div class="form-field">
+          <label>Utilizador</label>
+          <div class="input-box">
+            <input type="text" id="username" placeholder="Nome de utilizador" required autocomplete="username">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          </div>
+        </div>
+        <div class="form-field">
+          <label>Palavra-passe</label>
+          <div class="input-box">
+            <input type="password" id="password" placeholder="Introduz a palavra-passe" required autocomplete="current-password">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          </div>
+        </div>
+        <button type="submit" class="btn-login" id="btnLogin">
+          <span>Entrar</span>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        </button>
+        <div class="error-msg" id="loginError"></div>
       </form>
     </div>
+
     <div class="login-footer">
-      <p>Ivan & Rebeca &middot; Gestão Financeira</p>
+      Ivan <span>&</span> Becky <span>·</span> Casa Nova 2026
     </div>
   </div>
 
   <script>
-    // Check if already logged in
     const token = localStorage.getItem('token');
-    if (token) {
-      window.location.href = '/app.html';
+    if (token) window.location.href = '/app.html';
+
+    function selectUser(name) {
+      document.getElementById('username').value = name;
+      document.getElementById('password').focus();
+      document.querySelectorAll('.quick-user').forEach(b => b.classList.remove('active'));
+      event.currentTarget.classList.add('active');
     }
 
     document.getElementById('loginForm').addEventListener('submit', async (e) => {
@@ -57,10 +413,10 @@
       const username = document.getElementById('username').value.trim();
       const password = document.getElementById('password').value;
       const errorEl = document.getElementById('loginError');
-      const btn = e.target.querySelector('button[type="submit"]');
+      const btn = document.getElementById('btnLogin');
 
       btn.classList.add('loading');
-      errorEl.classList.add('hidden');
+      errorEl.classList.remove('visible');
 
       try {
         const res = await fetch('/api/login', {
@@ -68,19 +424,15 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ username, password })
         });
-
         const data = await res.json();
-
-        if (!res.ok) {
-          throw new Error(data.error);
-        }
+        if (!res.ok) throw new Error(data.error);
 
         localStorage.setItem('token', data.token);
         localStorage.setItem('user', JSON.stringify(data.user));
         window.location.href = '/app.html';
       } catch (err) {
         errorEl.textContent = err.message;
-        errorEl.classList.remove('hidden');
+        errorEl.classList.add('visible');
       } finally {
         btn.classList.remove('loading');
       }

@@ -73,7 +73,7 @@ async function initialize() {
   if (userCount === 0) {
     const hash = bcrypt.hashSync('despesas', 10);
     db.run("INSERT INTO users (username, password_hash, avatar_color) VALUES (?, ?, ?)", ['Ivan', hash, '#6C63FF']);
-    db.run("INSERT INTO users (username, password_hash, avatar_color) VALUES (?, ?, ?)", ['Rebeca', hash, '#FF6B9D']);
+    db.run("INSERT INTO users (username, password_hash, avatar_color) VALUES (?, ?, ?)", ['Becky', hash, '#FF6B9D']);
   }
 
   // Seed categories if not exist
