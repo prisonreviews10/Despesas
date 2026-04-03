@@ -81,6 +81,7 @@ function navigateTo(page) {
   if (page === 'dashboard') loadDashboard();
   else if (page === 'transactions') loadTransactions();
   else if (page === 'fixed') loadFixedExpenses();
+  else if (page === 'logs') loadLogs();
 }
 
 function toggleSidebar() {
@@ -586,6 +587,87 @@ function showToast(message, type = 'success') {
 function logout() {
   localStorage.clear();
   window.location.href = '/';
+}
+
+// ============ LOGS ============
+async function loadLogs() {
+  const container = document.getElementById('logsList');
+  container.innerHTML = `<div class="empty-state"><div class="icon">⏳</div><p>A carregar...</p></div>`;
+
+  try {
+    const logs = await api('/logs');
+
+    if (logs.length === 0) {
+      container.innerHTML = `
+        <div class="empty-state">
+          <div class="icon">📋</div>
+          <p>Ainda nao ha atividade registada</p>
+        </div>`;
+      return;
+    }
+
+    const actionLabel = { created: 'Adicionou', updated: 'Editou', deleted: 'Apagou' };
+    const entityLabel = { transaction: 'transacao', fixed_expense: 'despesa fixa' };
+
+    // Group by date
+    const grouped = {};
+    logs.forEach(log => {
+      const date = log.created_at.split(' ')[0];
+      if (!grouped[date]) grouped[date] = [];
+      grouped[date].push(log);
+    });
+
+    let html = '<ul class="log-feed">';
+
+    Object.entries(grouped).forEach(([date, items]) => {
+      html += `
+        <li style="padding:12px 28px 4px;border-bottom:1px solid var(--border-light)">
+          <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted)">
+            ${formatLogDate(date)}
+          </span>
+        </li>`;
+
+      items.forEach((log, i) => {
+        const isDeleted = log.action === 'deleted';
+        const amountClass = isDeleted ? 'neutral' : (log.entity_type === 'transaction' ? 'expense' : 'neutral');
+        const time = log.created_at.split(' ')[1]?.substring(0, 5) || '';
+
+        html += `
+          <li class="log-item" style="animation-delay:${i * 0.04}s">
+            <div class="log-dot ${log.action}">
+              ${log.entity_icon || '📦'}
+            </div>
+            <div class="log-body">
+              <div class="log-main">
+                <span class="log-user-badge" style="background:${log.avatar_color}">${log.username}</span>
+                <span class="log-action-badge ${log.action}">${actionLabel[log.action] || log.action}</span>
+                <span class="log-description">${log.entity_description || '—'}</span>
+              </div>
+              <div class="log-meta">
+                <span class="log-category">${log.entity_icon || ''} ${log.entity_category || entityLabel[log.entity_type] || log.entity_type}</span>
+                ${log.amount != null ? `<span class="log-amount ${amountClass}">${isDeleted ? '' : ''}${formatCurrency(log.amount)}</span>` : ''}
+                <span class="log-time">⏱ ${time}</span>
+              </div>
+            </div>
+          </li>`;
+      });
+    });
+
+    html += '</ul>';
+    container.innerHTML = html;
+
+  } catch (err) {
+    showToast('Erro ao carregar logs', 'error');
+  }
+}
+
+function formatLogDate(dateStr) {
+  const today = new Date().toISOString().split('T')[0];
+  const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+  if (dateStr === today) return 'Hoje';
+  if (dateStr === yesterday) return 'Ontem';
+  const d = new Date(dateStr + 'T00:00:00');
+  return d.toLocaleDateString('pt-PT', { weekday: 'long', day: '2-digit', month: 'long' });
 }
 
 // ============ KEYBOARD SHORTCUTS ============

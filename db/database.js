@@ -55,6 +55,21 @@ async function initialize() {
   `);
 
   db.run(`
+    CREATE TABLE IF NOT EXISTS activity_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      action TEXT NOT NULL,
+      entity_type TEXT NOT NULL,
+      entity_icon TEXT,
+      entity_category TEXT,
+      entity_description TEXT,
+      amount REAL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    )
+  `);
+
+  db.run(`
     CREATE TABLE IF NOT EXISTS fixed_expenses (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       category_id INTEGER NOT NULL,
