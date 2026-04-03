@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidXNlcm5hbWUiOiJJdmFuIiwiYXZhdGFyX2NvbG9yIjoiIzZDNjNGRiIsImlhdCI6MTc3NTE4NDg3NSwiZXhwIjoxNzc3Nzc2ODc1fQ.OHxfCywjxOausPVOz0zdBjSAJ4V0GfDXkT52Aao2hD4\")",
+      "Bash(curl -s http://localhost:3000/api/categories -H \"Authorization: Bearer $TOKEN\")",
+      "Bash(curl -s http://localhost:3000/api/summary -H \"Authorization: Bearer $TOKEN\")",
+      "Bash(taskkill //F //IM node.exe)"
+    ]
+  }
+}

@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Despesas - Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <!-- Mobile Header -->
+  <div class="mobile-header">
+    <button class="hamburger" onclick="toggleSidebar()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+    </button>
+    <span class="logo-text">💰 Despesas</span>
+  </div>
+  <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+  <div class="app-layout">
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-logo">
+          <div class="logo-icon">💰</div>
+          <h2>Despesas</h2>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <button class="nav-item active" data-page="dashboard" onclick="navigateTo('dashboard')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+          Dashboard
+        </button>
+        <button class="nav-item" data-page="transactions" onclick="navigateTo('transactions')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          Transações
+        </button>
+        <button class="nav-item" data-page="fixed" onclick="navigateTo('fixed')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+          Despesas Fixas
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="user-profile">
+          <div class="user-avatar" id="userAvatar"></div>
+          <div class="user-info">
+            <div class="name" id="userName"></div>
+            <div class="role">Membro</div>
+          </div>
+          <button class="btn-logout" onclick="logout()" title="Sair">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- ============ DASHBOARD PAGE ============ -->
+      <div id="page-dashboard" class="page active">
+        <div class="page-header">
+          <div>
+            <h1>Dashboard</h1>
+            <p class="subtitle">Visão geral das finanças do casal</p>
+          </div>
+          <div class="month-selector">
+            <button onclick="changeMonth(-1)">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+            </button>
+            <span class="month-label" id="monthLabel"></span>
+            <button onclick="changeMonth(1)">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Stats -->
+        <div class="stats-grid">
+          <div class="stat-card income">
+            <div class="stat-header">
+              <div class="stat-icon">📈</div>
+              <span class="stat-label">Rendimentos</span>
+            </div>
+            <div class="stat-value" id="totalIncome">0,00 €</div>
+          </div>
+          <div class="stat-card expense">
+            <div class="stat-header">
+              <div class="stat-icon">📉</div>
+              <span class="stat-label">Despesas</span>
+            </div>
+            <div class="stat-value" id="totalExpenses">0,00 €</div>
+          </div>
+          <div class="stat-card balance">
+            <div class="stat-header">
+              <div class="stat-icon">💎</div>
+              <span class="stat-label">Saldo</span>
+            </div>
+            <div class="stat-value" id="totalBalance">0,00 €</div>
+          </div>
+          <div class="stat-card fixed">
+            <div class="stat-header">
+              <div class="stat-icon">📋</div>
+              <span class="stat-label">Despesas Fixas</span>
+            </div>
+            <div class="stat-value" id="totalFixed">0,00 €</div>
+          </div>
+        </div>
+
+        <!-- Users Comparison -->
+        <div class="card">
+          <div class="card-header">
+            <h3>Comparação por Pessoa</h3>
+          </div>
+          <div class="card-body">
+            <div class="users-comparison" id="usersComparison"></div>
+          </div>
+        </div>
+
+        <!-- Category Breakdown -->
+        <div class="card">
+          <div class="card-header">
+            <h3>Despesas por Categoria</h3>
+          </div>
+          <div class="card-body" id="categoryBreakdown"></div>
+        </div>
+
+        <!-- Recent Transactions -->
+        <div class="card">
+          <div class="card-header">
+            <h3>Últimas Transações</h3>
+            <button class="btn btn-primary btn-sm" onclick="openTransactionModal()">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Adicionar
+            </button>
+          </div>
+          <div class="card-body no-padding">
+            <ul class="transaction-list" id="recentTransactions"></ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ TRANSACTIONS PAGE ============ -->
+      <div id="page-transactions" class="page hidden">
+        <div class="page-header">
+          <div>
+            <h1>Transações</h1>
+            <p class="subtitle">Todas as receitas e despesas</p>
+          </div>
+          <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+            <div class="month-selector">
+              <button onclick="changeMonth(-1)">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+              </button>
+              <span class="month-label month-label-sync"></span>
+              <button onclick="changeMonth(1)">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+              </button>
+            </div>
+            <button class="btn btn-primary" onclick="openTransactionModal()">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Nova Transação
+            </button>
+          </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="card" style="margin-bottom:20px">
+          <div class="card-body" style="padding:16px 24px">
+            <div class="tabs" id="transactionTabs">
+              <button class="tab-btn active" data-filter="all" onclick="filterTransactions('all')">Todas</button>
+              <button class="tab-btn" data-filter="expense" onclick="filterTransactions('expense')">Despesas</button>
+              <button class="tab-btn" data-filter="income" onclick="filterTransactions('income')">Receitas</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-body no-padding">
+            <ul class="transaction-list" id="allTransactions"></ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ FIXED EXPENSES PAGE ============ -->
+      <div id="page-fixed" class="page hidden">
+        <div class="page-header">
+          <div>
+            <h1>Despesas Fixas</h1>
+            <p class="subtitle">Contas mensais recorrentes</p>
+          </div>
+          <button class="btn btn-primary" onclick="openFixedModal()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Nova Despesa Fixa
+          </button>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3>Contas Mensais</h3>
+            <span id="fixedTotal" style="font-weight:700;color:var(--danger)"></span>
+          </div>
+          <div class="card-body no-padding">
+            <div id="fixedExpensesList"></div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Transaction Modal -->
+  <div class="modal-overlay" id="transactionModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="transactionModalTitle">Nova Transação</h3>
+        <button class="btn-icon" onclick="closeModal('transactionModal')">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="type-toggle">
+          <button id="typeExpense" class="active-expense" onclick="setTransactionType('expense')">📉 Despesa</button>
+          <button id="typeIncome" onclick="setTransactionType('income')">📈 Receita</button>
+        </div>
+        <form id="transactionForm">
+          <input type="hidden" id="transactionId">
+          <input type="hidden" id="transactionType" value="expense">
+          <div class="form-group">
+            <label for="transactionCategory">Categoria</label>
+            <select id="transactionCategory" required></select>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="transactionAmount">Valor (€)</label>
+              <input type="number" id="transactionAmount" step="0.01" min="0" placeholder="0,00" required>
+            </div>
+            <div class="form-group">
+              <label for="transactionDate">Data</label>
+              <input type="date" id="transactionDate" required>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="transactionDesc">Descrição (opcional)</label>
+            <input type="text" id="transactionDesc" placeholder="Ex: Compras no Continente">
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeModal('transactionModal')">Cancelar</button>
+        <button class="btn btn-primary" onclick="saveTransaction()">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Fixed Expense Modal -->
+  <div class="modal-overlay" id="fixedModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="fixedModalTitle">Nova Despesa Fixa</h3>
+        <button class="btn-icon" onclick="closeModal('fixedModal')">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="fixedForm">
+          <input type="hidden" id="fixedId">
+          <div class="form-group">
+            <label for="fixedCategory">Categoria</label>
+            <select id="fixedCategory" required></select>
+          </div>
+          <div class="form-group">
+            <label for="fixedDesc">Descrição</label>
+            <input type="text" id="fixedDesc" placeholder="Ex: Prestação do crédito habitação" required>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="fixedAmount">Valor Mensal (€)</label>
+              <input type="number" id="fixedAmount" step="0.01" min="0" placeholder="0,00" required>
+            </div>
+            <div class="form-group">
+              <label for="fixedDueDay">Dia de Pagamento</label>
+              <input type="number" id="fixedDueDay" min="1" max="31" placeholder="1-31">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>
+              <input type="checkbox" id="fixedShared" checked> Despesa partilhada (dividida a meias)
+            </label>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeModal('fixedModal')">Cancelar</button>
+        <button class="btn btn-primary" onclick="saveFixedExpense()">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script src="/js/app.js"></script>
+</body>
+</html>
