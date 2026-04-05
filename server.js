@@ -241,6 +241,58 @@ app.delete('/api/fixed-expenses/:id', authenticate, (req, res) => {
   res.json({ success: true });
 });
 
+// ============ BUDGETS ============
+
+app.get('/api/budgets', authenticate, (req, res) => {
+  const { month, year } = req.query;
+  const db = getDb();
+  const m = (month || (new Date().getMonth() + 1).toString()).padStart(2, '0');
+  const y = year || new Date().getFullYear().toString();
+
+  // Get all budgets with current month spending
+  const budgets = db.all(`
+    SELECT b.*, c.name as category_name, c.icon as category_icon, c.color as category_color,
+           COALESCE(SUM(t.amount), 0) as spent
+    FROM budgets b
+    JOIN categories c ON b.category_id = c.id
+    LEFT JOIN transactions t
+      ON t.category_id = b.category_id
+      AND t.type = 'expense'
+      AND substr(t.date, 6, 2) = ?
+      AND substr(t.date, 1, 4) = ?
+    GROUP BY b.id
+    ORDER BY (COALESCE(SUM(t.amount), 0) / b.monthly_limit) DESC
+  `, [m, y]);
+
+  res.json(budgets);
+});
+
+app.post('/api/budgets', authenticate, (req, res) => {
+  const { category_id, monthly_limit } = req.body;
+  const db = getDb();
+
+  // Upsert — update if exists, insert if not
+  const existing = db.get('SELECT id FROM budgets WHERE category_id = ?', [category_id]);
+  if (existing) {
+    db.run('UPDATE budgets SET monthly_limit = ? WHERE category_id = ?', [monthly_limit, category_id]);
+  } else {
+    db.run('INSERT INTO budgets (category_id, monthly_limit) VALUES (?, ?)', [category_id, monthly_limit]);
+  }
+
+  const budget = db.get(`
+    SELECT b.*, c.name as category_name, c.icon as category_icon, c.color as category_color
+    FROM budgets b JOIN categories c ON b.category_id = c.id
+    WHERE b.category_id = ?
+  `, [category_id]);
+
+  res.json(budget);
+});
+
+app.delete('/api/budgets/:id', authenticate, (req, res) => {
+  getDb().run('DELETE FROM budgets WHERE id = ?', [parseInt(req.params.id)]);
+  res.json({ success: true });
+});
+
 // ============ LOGS ============
 
 app.get('/api/logs', authenticate, (req, res) => {

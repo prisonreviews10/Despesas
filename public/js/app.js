@@ -81,6 +81,7 @@ function navigateTo(page) {
   if (page === 'dashboard') loadDashboard();
   else if (page === 'transactions') loadTransactions();
   else if (page === 'fixed') loadFixedExpenses();
+  else if (page === 'budgets') loadBudgets();
   else if (page === 'logs') loadLogs();
 }
 
@@ -152,9 +153,10 @@ function populateCategorySelect(selectId, type) {
 // ============ DASHBOARD ============
 async function loadDashboard() {
   try {
-    const [summary, transactions] = await Promise.all([
+    const [summary, transactions, budgets] = await Promise.all([
       api(`/summary?month=${currentMonth}&year=${currentYear}`),
-      api(`/transactions?month=${currentMonth}&year=${currentYear}`)
+      api(`/transactions?month=${currentMonth}&year=${currentYear}`),
+      api(`/budgets?month=${currentMonth}&year=${currentYear}`)
     ]);
 
     // Animated stat cards
@@ -165,11 +167,38 @@ async function loadDashboard() {
 
     renderUsersComparison(summary.perUser);
     renderCategoryBreakdown(summary.byCategory, summary.totals.expenses);
+    renderBudgetAlerts(budgets);
     renderTransactionList('recentTransactions', transactions.slice(0, 6));
 
   } catch (err) {
     showToast('Erro ao carregar dashboard', 'error');
   }
+}
+
+function renderBudgetAlerts(budgets) {
+  const card = document.getElementById('budgetAlertsCard');
+  const container = document.getElementById('budgetAlerts');
+  const alerts = budgets.filter(b => (b.spent / b.monthly_limit) >= 0.7);
+
+  if (!alerts.length) { card.style.display = 'none'; return; }
+
+  card.style.display = '';
+  container.innerHTML = alerts.map(b => {
+    const pct = Math.min((b.spent / b.monthly_limit) * 100, 110);
+    const status = getBudgetStatus(pct);
+    const remaining = b.monthly_limit - b.spent;
+    return `
+      <div class="budget-alert-item ${status}">
+        <div class="alert-icon">${b.category_icon}</div>
+        <div class="alert-info">
+          <div class="alert-name">${b.category_name}</div>
+          <div class="alert-sub">
+            ${remaining >= 0 ? `Restam ${formatCurrency(remaining)} de ${formatCurrency(b.monthly_limit)}` : `Excedido em ${formatCurrency(Math.abs(remaining))}`}
+          </div>
+        </div>
+        <div class="alert-pct">${Math.round(pct)}%</div>
+      </div>`;
+  }).join('');
 }
 
 function renderUsersComparison(perUser) {
@@ -587,6 +616,175 @@ function showToast(message, type = 'success') {
 function logout() {
   localStorage.clear();
   window.location.href = '/';
+}
+
+// ============ BUDGETS ============
+
+function getBudgetStatus(pct) {
+  if (pct >= 100) return 'exceeded';
+  if (pct >= 90)  return 'danger';
+  if (pct >= 70)  return 'warning';
+  return 'ok';
+}
+
+function getBudgetStatusLabel(pct) {
+  if (pct >= 100) return '🚨 Ultrapassado';
+  if (pct >= 90)  return '🔴 Critico';
+  if (pct >= 70)  return '🟡 Atencao';
+  return '✅ OK';
+}
+
+async function loadBudgets() {
+  try {
+    const budgets = await api(`/budgets?month=${currentMonth}&year=${currentYear}`);
+    renderBudgetsSummary(budgets);
+    renderBudgetsGrid(budgets);
+  } catch (err) {
+    showToast('Erro ao carregar orcamentos', 'error');
+  }
+}
+
+function renderBudgetsSummary(budgets) {
+  const container = document.getElementById('budgetsSummary');
+  if (!budgets.length) { container.innerHTML = ''; return; }
+
+  const totalLimit = budgets.reduce((s, b) => s + b.monthly_limit, 0);
+  const totalSpent = budgets.reduce((s, b) => s + b.spent, 0);
+  const overBudget = budgets.filter(b => b.spent >= b.monthly_limit).length;
+
+  container.innerHTML = `
+    <div class="budget-summary-card">
+      <div class="bs-icon" style="background:rgba(108,99,255,.12)">🎯</div>
+      <div>
+        <div class="bs-label">Total Orcamentado</div>
+        <div class="bs-value" style="color:var(--primary-light)">${formatCurrency(totalLimit)}</div>
+      </div>
+    </div>
+    <div class="budget-summary-card">
+      <div class="bs-icon" style="background:rgba(255,92,114,.12)">💸</div>
+      <div>
+        <div class="bs-label">Total Gasto</div>
+        <div class="bs-value" style="color:${totalSpent > totalLimit ? 'var(--danger)' : 'var(--text)'}">${formatCurrency(totalSpent)}</div>
+      </div>
+    </div>
+    <div class="budget-summary-card">
+      <div class="bs-icon" style="background:rgba(255,183,77,.12)">⚠️</div>
+      <div>
+        <div class="bs-label">Categorias em Alerta</div>
+        <div class="bs-value" style="color:${overBudget > 0 ? 'var(--danger)' : 'var(--success)'}">${overBudget} / ${budgets.length}</div>
+      </div>
+    </div>
+  `;
+}
+
+function renderBudgetsGrid(budgets) {
+  const container = document.getElementById('budgetsGrid');
+
+  if (!budgets.length) {
+    container.innerHTML = `
+      <div class="empty-state" style="grid-column:1/-1">
+        <div class="icon">🎯</div>
+        <p>Ainda nao definiste nenhum orcamento</p>
+        <button class="btn btn-primary btn-sm" style="margin-top:16px" onclick="openBudgetModal()">
+          Definir primeiro orcamento
+        </button>
+      </div>`;
+    return;
+  }
+
+  container.innerHTML = budgets.map((b, i) => {
+    const pct = Math.min((b.spent / b.monthly_limit) * 100, 110);
+    const status = getBudgetStatus(pct);
+    const remaining = b.monthly_limit - b.spent;
+
+    return `
+      <div class="budget-card ${status}" style="animation:pageIn 0.3s ease-out ${i * 0.06}s both">
+        <div class="budget-card-header">
+          <div class="budget-card-title">
+            <div class="budget-cat-icon" style="background:${b.category_color}18">${b.category_icon}</div>
+            <div>
+              <div class="budget-cat-name">${b.category_name}</div>
+              <div style="font-size:11px;color:var(--text-muted);margin-top:2px">${getBudgetStatusLabel(pct)}</div>
+            </div>
+          </div>
+          <div class="budget-card-actions">
+            <button class="btn-icon" onclick="openBudgetModal(${b.id}, ${b.category_id}, ${b.monthly_limit})" title="Editar">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            </button>
+            <button class="btn-icon delete" onclick="deleteBudget(${b.id})" title="Remover">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="budget-amounts">
+          <div class="budget-spent">${formatCurrency(b.spent)}</div>
+          <div class="budget-limit">de ${formatCurrency(b.monthly_limit)}</div>
+        </div>
+
+        <div class="budget-bar-wrap">
+          <div class="budget-bar-fill" style="width:0%" data-target="${Math.min(pct, 100)}%"></div>
+        </div>
+
+        <div class="budget-footer">
+          <div class="budget-remaining">
+            ${remaining >= 0 ? `Restam ${formatCurrency(remaining)}` : `Excedido em ${formatCurrency(Math.abs(remaining))}`}
+          </div>
+          <div class="budget-pct-badge">${Math.round(pct)}%</div>
+        </div>
+      </div>`;
+  }).join('');
+
+  // Animate bars
+  setTimeout(() => {
+    container.querySelectorAll('.budget-bar-fill').forEach(bar => {
+      bar.style.width = bar.dataset.target;
+    });
+  }, 80);
+}
+
+function openBudgetModal(id = null, categoryId = null, limit = null) {
+  populateCategorySelect('budgetCategory', 'expense');
+  if (categoryId) document.getElementById('budgetCategory').value = categoryId;
+  document.getElementById('budgetLimit').value = limit || '';
+  document.getElementById('budgetCategory').dataset.editId = id || '';
+  openModal('budgetModal');
+}
+
+async function saveBudget() {
+  const category_id = parseInt(document.getElementById('budgetCategory').value);
+  const monthly_limit = parseFloat(document.getElementById('budgetLimit').value);
+
+  if (!category_id || !monthly_limit) {
+    showToast('Preenche todos os campos', 'error');
+    return;
+  }
+
+  try {
+    await api('/budgets', {
+      method: 'POST',
+      body: JSON.stringify({ category_id, monthly_limit })
+    });
+    showToast('Orcamento guardado!', 'success');
+    closeModal('budgetModal');
+    loadBudgets();
+    // Refresh dashboard widget if visible
+    if (currentPage === 'dashboard') loadDashboard();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
+async function deleteBudget(id) {
+  if (!confirm('Remover este orcamento?')) return;
+  try {
+    await api(`/budgets/${id}`, { method: 'DELETE' });
+    showToast('Orcamento removido', 'success');
+    loadBudgets();
+    if (currentPage === 'dashboard') loadDashboard();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
 }
 
 // ============ LOGS ============
