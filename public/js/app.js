@@ -355,7 +355,7 @@ function openTransactionModal(data = null) {
   document.getElementById('transactionId').value = data?.id || '';
   document.getElementById('transactionType').value = type;
   document.getElementById('transactionAmount').value = data?.amount || '';
-  document.getElementById('transactionDate').value = data?.date || new Date().toISOString().split('T')[0];
+  document.getElementById('transactionDate').value = data?.date || localDateStr();
   document.getElementById('transactionDesc').value = data?.description || '';
 
   setTransactionType(type);
@@ -586,6 +586,10 @@ document.addEventListener('keydown', (e) => {
 });
 
 // ============ HELPERS ============
+function localDateStr(d = new Date()) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 function formatCurrency(value) {
   return new Intl.NumberFormat('pt-PT', {
     style: 'currency',
@@ -860,8 +864,8 @@ async function loadLogs() {
 }
 
 function formatLogDate(dateStr) {
-  const today = new Date().toISOString().split('T')[0];
-  const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+  const today = localDateStr();
+  const yesterday = localDateStr(new Date(Date.now() - 86400000));
   if (dateStr === today) return 'Hoje';
   if (dateStr === yesterday) return 'Ontem';
   const d = new Date(dateStr + 'T00:00:00');
