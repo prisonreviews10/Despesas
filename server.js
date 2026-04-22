@@ -24,8 +24,7 @@ function authenticate(req, res, next) {
   }
 }
 
-// Helper to write an activity log entry
-function writeLog(db, userId, action, entityType, { icon, category, description, amount } = {}) {
+async function writeLog(db, userId, action, entityType, { icon, category, description, amount } = {}) {
   db.run(
     `INSERT INTO activity_logs (user_id, action, entity_type, entity_icon, entity_category, entity_description, amount)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
@@ -35,316 +34,377 @@ function writeLog(db, userId, action, entityType, { icon, category, description,
 
 // ============ AUTH ============
 
-app.post('/api/login', (req, res) => {
-  const { username, password } = req.body;
-  const db = getDb();
-  const user = db.get('SELECT * FROM users WHERE username = ?', [username]);
-  if (!user) return res.status(401).json({ error: 'Utilizador não encontrado' });
-  if (!bcrypt.compareSync(password, user.password_hash))
-    return res.status(401).json({ error: 'Palavra-passe incorreta' });
+app.post('/api/login', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    const db = getDb();
+    const user = await db.get('SELECT * FROM users WHERE username = ?', [username]);
+    if (!user) return res.status(401).json({ error: 'Utilizador não encontrado' });
+    if (!bcrypt.compareSync(password, user.password_hash))
+      return res.status(401).json({ error: 'Palavra-passe incorreta' });
 
-  const token = jwt.sign(
-    { id: user.id, username: user.username, avatar_color: user.avatar_color },
-    JWT_SECRET, { expiresIn: '30d' }
-  );
-  res.json({ token, user: { id: user.id, username: user.username, avatar_color: user.avatar_color } });
+    const token = jwt.sign(
+      { id: user.id, username: user.username, avatar_color: user.avatar_color },
+      JWT_SECRET, { expiresIn: '30d' }
+    );
+    res.json({ token, user: { id: user.id, username: user.username, avatar_color: user.avatar_color } });
+  } catch (err) {
+    res.status(500).json({ error: 'Erro interno' });
+  }
 });
 
-app.get('/api/me', authenticate, (req, res) => {
-  const db = getDb();
-  res.json(db.get('SELECT id, username, avatar_color FROM users WHERE id = ?', [req.user.id]));
+app.get('/api/me', authenticate, async (req, res) => {
+  try {
+    const db = getDb();
+    res.json(await db.get('SELECT id, username, avatar_color FROM users WHERE id = ?', [req.user.id]));
+  } catch (err) {
+    res.status(500).json({ error: 'Erro interno' });
+  }
 });
 
 // ============ CATEGORIES ============
 
-app.get('/api/categories', authenticate, (req, res) => {
-  res.json(getDb().all('SELECT * FROM categories ORDER BY type, name'));
+app.get('/api/categories', authenticate, async (req, res) => {
+  try {
+    res.json(await getDb().all('SELECT * FROM categories ORDER BY type, name'));
+  } catch (err) {
+    res.status(500).json({ error: 'Erro interno' });
+  }
 });
 
 // ============ TRANSACTIONS ============
 
-app.get('/api/transactions', authenticate, (req, res) => {
-  const { month, year, type, user_id } = req.query;
-  const db = getDb();
-  let query = `
-    SELECT t.*, c.name as category_name, c.icon as category_icon, c.color as category_color,
-           u.username, u.avatar_color
-    FROM transactions t
-    JOIN categories c ON t.category_id = c.id
-    JOIN users u ON t.user_id = u.id
-    WHERE 1=1
-  `;
-  const params = [];
-  if (month && year) {
-    query += ` AND substr(t.date, 6, 2) = ? AND substr(t.date, 1, 4) = ?`;
-    params.push(month.padStart(2, '0'), year);
+app.get('/api/transactions', authenticate, async (req, res) => {
+  try {
+    const { month, year, type, user_id } = req.query;
+    const db = getDb();
+    let query = `
+      SELECT t.*, c.name as category_name, c.icon as category_icon, c.color as category_color,
+             u.username, u.avatar_color
+      FROM transactions t
+      JOIN categories c ON t.category_id = c.id
+      JOIN users u ON t.user_id = u.id
+      WHERE 1=1
+    `;
+    const params = [];
+    if (month && year) {
+      query += ` AND substr(t.date, 6, 2) = ? AND substr(t.date, 1, 4) = ?`;
+      params.push(month.padStart(2, '0'), year);
+    }
+    if (type) { query += ` AND t.type = ?`; params.push(type); }
+    if (user_id) { query += ` AND t.user_id = ?`; params.push(parseInt(user_id)); }
+    query += ` ORDER BY t.date DESC, t.created_at DESC`;
+    res.json(await db.all(query, params));
+  } catch (err) {
+    res.status(500).json({ error: 'Erro interno' });
   }
-  if (type) { query += ` AND t.type = ?`; params.push(type); }
-  if (user_id) { query += ` AND t.user_id = ?`; params.push(parseInt(user_id)); }
-  query += ` ORDER BY t.date DESC, t.created_at DESC`;
-  res.json(db.all(query, params));
 });
 
-app.post('/api/transactions', authenticate, (req, res) => {
-  const { category_id, type, description, amount, date } = req.body;
-  const db = getDb();
+app.post('/api/transactions', authenticate, async (req, res) => {
+  try {
+    const { category_id, type, description, amount, date } = req.body;
+    const db = getDb();
 
-  const result = db.run(
-    'INSERT INTO transactions (user_id, category_id, type, description, amount, date) VALUES (?, ?, ?, ?, ?, ?)',
-    [req.user.id, category_id, type, description || '', amount, date]
-  );
+    const result = await db.run(
+      'INSERT INTO transactions (user_id, category_id, type, description, amount, date) VALUES (?, ?, ?, ?, ?, ?)',
+      [req.user.id, category_id, type, description || '', amount, date]
+    );
 
-  const transaction = db.get(`
-    SELECT t.*, c.name as category_name, c.icon as category_icon, c.color as category_color,
-           u.username, u.avatar_color
-    FROM transactions t JOIN categories c ON t.category_id = c.id
-    JOIN users u ON t.user_id = u.id WHERE t.id = ?
-  `, [result.lastInsertRowid]);
+    const transaction = await db.get(`
+      SELECT t.*, c.name as category_name, c.icon as category_icon, c.color as category_color,
+             u.username, u.avatar_color
+      FROM transactions t JOIN categories c ON t.category_id = c.id
+      JOIN users u ON t.user_id = u.id WHERE t.id = ?
+    `, [result.lastInsertRowid]);
 
-  writeLog(db, req.user.id, 'created', 'transaction', {
-    icon: transaction.category_icon,
-    category: transaction.category_name,
-    description: description || transaction.category_name,
-    amount
-  });
-
-  res.json(transaction);
-});
-
-app.put('/api/transactions/:id', authenticate, (req, res) => {
-  const { category_id, type, description, amount, date } = req.body;
-  const db = getDb();
-  const id = parseInt(req.params.id);
-
-  db.run(
-    'UPDATE transactions SET category_id = ?, type = ?, description = ?, amount = ?, date = ? WHERE id = ?',
-    [category_id, type, description || '', amount, date, id]
-  );
-
-  const transaction = db.get(`
-    SELECT t.*, c.name as category_name, c.icon as category_icon, c.color as category_color,
-           u.username, u.avatar_color
-    FROM transactions t JOIN categories c ON t.category_id = c.id
-    JOIN users u ON t.user_id = u.id WHERE t.id = ?
-  `, [id]);
-
-  writeLog(db, req.user.id, 'updated', 'transaction', {
-    icon: transaction.category_icon,
-    category: transaction.category_name,
-    description: description || transaction.category_name,
-    amount
-  });
-
-  res.json(transaction);
-});
-
-app.delete('/api/transactions/:id', authenticate, (req, res) => {
-  const db = getDb();
-  const id = parseInt(req.params.id);
-
-  const transaction = db.get(`
-    SELECT t.*, c.name as category_name, c.icon as category_icon
-    FROM transactions t JOIN categories c ON t.category_id = c.id WHERE t.id = ?
-  `, [id]);
-
-  if (transaction) {
-    writeLog(db, req.user.id, 'deleted', 'transaction', {
+    writeLog(db, req.user.id, 'created', 'transaction', {
       icon: transaction.category_icon,
       category: transaction.category_name,
-      description: transaction.description || transaction.category_name,
-      amount: transaction.amount
+      description: description || transaction.category_name,
+      amount
     });
-  }
 
-  db.run('DELETE FROM transactions WHERE id = ?', [id]);
-  res.json({ success: true });
+    res.json(transaction);
+  } catch (err) {
+    res.status(500).json({ error: 'Erro interno' });
+  }
+});
+
+app.put('/api/transactions/:id', authenticate, async (req, res) => {
+  try {
+    const { category_id, type, description, amount, date } = req.body;
+    const db = getDb();
+    const id = parseInt(req.params.id);
+
+    await db.run(
+      'UPDATE transactions SET category_id = ?, type = ?, description = ?, amount = ?, date = ? WHERE id = ?',
+      [category_id, type, description || '', amount, date, id]
+    );
+
+    const transaction = await db.get(`
+      SELECT t.*, c.name as category_name, c.icon as category_icon, c.color as category_color,
+             u.username, u.avatar_color
+      FROM transactions t JOIN categories c ON t.category_id = c.id
+      JOIN users u ON t.user_id = u.id WHERE t.id = ?
+    `, [id]);
+
+    writeLog(db, req.user.id, 'updated', 'transaction', {
+      icon: transaction.category_icon,
+      category: transaction.category_name,
+      description: description || transaction.category_name,
+      amount
+    });
+
+    res.json(transaction);
+  } catch (err) {
+    res.status(500).json({ error: 'Erro interno' });
+  }
+});
+
+app.delete('/api/transactions/:id', authenticate, async (req, res) => {
+  try {
+    const db = getDb();
+    const id = parseInt(req.params.id);
+
+    const transaction = await db.get(`
+      SELECT t.*, c.name as category_name, c.icon as category_icon
+      FROM transactions t JOIN categories c ON t.category_id = c.id WHERE t.id = ?
+    `, [id]);
+
+    if (transaction) {
+      writeLog(db, req.user.id, 'deleted', 'transaction', {
+        icon: transaction.category_icon,
+        category: transaction.category_name,
+        description: transaction.description || transaction.category_name,
+        amount: transaction.amount
+      });
+    }
+
+    await db.run('DELETE FROM transactions WHERE id = ?', [id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Erro interno' });
+  }
 });
 
 // ============ FIXED EXPENSES ============
 
-app.get('/api/fixed-expenses', authenticate, (req, res) => {
-  res.json(getDb().all(`
-    SELECT f.*, c.name as category_name, c.icon as category_icon, c.color as category_color
-    FROM fixed_expenses f JOIN categories c ON f.category_id = c.id
-    WHERE f.active = 1 ORDER BY f.due_day
-  `));
+app.get('/api/fixed-expenses', authenticate, async (req, res) => {
+  try {
+    res.json(await getDb().all(`
+      SELECT f.*, c.name as category_name, c.icon as category_icon, c.color as category_color
+      FROM fixed_expenses f JOIN categories c ON f.category_id = c.id
+      WHERE f.active = 1 ORDER BY f.due_day
+    `));
+  } catch (err) {
+    res.status(500).json({ error: 'Erro interno' });
+  }
 });
 
-app.post('/api/fixed-expenses', authenticate, (req, res) => {
-  const { category_id, description, amount, due_day, is_shared } = req.body;
-  const db = getDb();
+app.post('/api/fixed-expenses', authenticate, async (req, res) => {
+  try {
+    const { category_id, description, amount, due_day, is_shared } = req.body;
+    const db = getDb();
 
-  const result = db.run(
-    'INSERT INTO fixed_expenses (category_id, description, amount, due_day, is_shared) VALUES (?, ?, ?, ?, ?)',
-    [category_id, description, amount, due_day || null, is_shared ? 1 : 0]
-  );
+    const result = await db.run(
+      'INSERT INTO fixed_expenses (category_id, description, amount, due_day, is_shared) VALUES (?, ?, ?, ?, ?)',
+      [category_id, description, amount, due_day || null, is_shared ? 1 : 0]
+    );
 
-  const expense = db.get(`
-    SELECT f.*, c.name as category_name, c.icon as category_icon, c.color as category_color
-    FROM fixed_expenses f JOIN categories c ON f.category_id = c.id WHERE f.id = ?
-  `, [result.lastInsertRowid]);
+    const expense = await db.get(`
+      SELECT f.*, c.name as category_name, c.icon as category_icon, c.color as category_color
+      FROM fixed_expenses f JOIN categories c ON f.category_id = c.id WHERE f.id = ?
+    `, [result.lastInsertRowid]);
 
-  writeLog(db, req.user.id, 'created', 'fixed_expense', {
-    icon: expense.category_icon,
-    category: expense.category_name,
-    description,
-    amount
-  });
-
-  res.json(expense);
-});
-
-app.put('/api/fixed-expenses/:id', authenticate, (req, res) => {
-  const { category_id, description, amount, due_day, is_shared } = req.body;
-  const db = getDb();
-  const id = parseInt(req.params.id);
-
-  db.run(
-    'UPDATE fixed_expenses SET category_id = ?, description = ?, amount = ?, due_day = ?, is_shared = ? WHERE id = ?',
-    [category_id, description, amount, due_day || null, is_shared ? 1 : 0, id]
-  );
-
-  const expense = db.get(`
-    SELECT f.*, c.name as category_name, c.icon as category_icon, c.color as category_color
-    FROM fixed_expenses f JOIN categories c ON f.category_id = c.id WHERE f.id = ?
-  `, [id]);
-
-  writeLog(db, req.user.id, 'updated', 'fixed_expense', {
-    icon: expense.category_icon,
-    category: expense.category_name,
-    description,
-    amount
-  });
-
-  res.json(expense);
-});
-
-app.delete('/api/fixed-expenses/:id', authenticate, (req, res) => {
-  const db = getDb();
-  const id = parseInt(req.params.id);
-
-  const expense = db.get(`
-    SELECT f.*, c.name as category_name, c.icon as category_icon
-    FROM fixed_expenses f JOIN categories c ON f.category_id = c.id WHERE f.id = ?
-  `, [id]);
-
-  if (expense) {
-    writeLog(db, req.user.id, 'deleted', 'fixed_expense', {
+    writeLog(db, req.user.id, 'created', 'fixed_expense', {
       icon: expense.category_icon,
       category: expense.category_name,
-      description: expense.description,
-      amount: expense.amount
+      description,
+      amount
     });
-  }
 
-  db.run('UPDATE fixed_expenses SET active = 0 WHERE id = ?', [id]);
-  res.json({ success: true });
+    res.json(expense);
+  } catch (err) {
+    res.status(500).json({ error: 'Erro interno' });
+  }
+});
+
+app.put('/api/fixed-expenses/:id', authenticate, async (req, res) => {
+  try {
+    const { category_id, description, amount, due_day, is_shared } = req.body;
+    const db = getDb();
+    const id = parseInt(req.params.id);
+
+    await db.run(
+      'UPDATE fixed_expenses SET category_id = ?, description = ?, amount = ?, due_day = ?, is_shared = ? WHERE id = ?',
+      [category_id, description, amount, due_day || null, is_shared ? 1 : 0, id]
+    );
+
+    const expense = await db.get(`
+      SELECT f.*, c.name as category_name, c.icon as category_icon, c.color as category_color
+      FROM fixed_expenses f JOIN categories c ON f.category_id = c.id WHERE f.id = ?
+    `, [id]);
+
+    writeLog(db, req.user.id, 'updated', 'fixed_expense', {
+      icon: expense.category_icon,
+      category: expense.category_name,
+      description,
+      amount
+    });
+
+    res.json(expense);
+  } catch (err) {
+    res.status(500).json({ error: 'Erro interno' });
+  }
+});
+
+app.delete('/api/fixed-expenses/:id', authenticate, async (req, res) => {
+  try {
+    const db = getDb();
+    const id = parseInt(req.params.id);
+
+    const expense = await db.get(`
+      SELECT f.*, c.name as category_name, c.icon as category_icon
+      FROM fixed_expenses f JOIN categories c ON f.category_id = c.id WHERE f.id = ?
+    `, [id]);
+
+    if (expense) {
+      writeLog(db, req.user.id, 'deleted', 'fixed_expense', {
+        icon: expense.category_icon,
+        category: expense.category_name,
+        description: expense.description,
+        amount: expense.amount
+      });
+    }
+
+    await db.run('UPDATE fixed_expenses SET active = 0 WHERE id = ?', [id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Erro interno' });
+  }
 });
 
 // ============ BUDGETS ============
 
-app.get('/api/budgets', authenticate, (req, res) => {
-  const { month, year } = req.query;
-  const db = getDb();
-  const m = (month || (new Date().getMonth() + 1).toString()).padStart(2, '0');
-  const y = year || new Date().getFullYear().toString();
+app.get('/api/budgets', authenticate, async (req, res) => {
+  try {
+    const { month, year } = req.query;
+    const db = getDb();
+    const m = (month || (new Date().getMonth() + 1).toString()).padStart(2, '0');
+    const y = year || new Date().getFullYear().toString();
 
-  // Get all budgets with current month spending
-  const budgets = db.all(`
-    SELECT b.*, c.name as category_name, c.icon as category_icon, c.color as category_color,
-           COALESCE(SUM(t.amount), 0) as spent
-    FROM budgets b
-    JOIN categories c ON b.category_id = c.id
-    LEFT JOIN transactions t
-      ON t.category_id = b.category_id
-      AND t.type = 'expense'
-      AND substr(t.date, 6, 2) = ?
-      AND substr(t.date, 1, 4) = ?
-    GROUP BY b.id
-    ORDER BY (COALESCE(SUM(t.amount), 0) / b.monthly_limit) DESC
-  `, [m, y]);
+    const budgets = await db.all(`
+      SELECT b.*, c.name as category_name, c.icon as category_icon, c.color as category_color,
+             COALESCE(SUM(t.amount), 0) as spent
+      FROM budgets b
+      JOIN categories c ON b.category_id = c.id
+      LEFT JOIN transactions t
+        ON t.category_id = b.category_id
+        AND t.type = 'expense'
+        AND substr(t.date, 6, 2) = ?
+        AND substr(t.date, 1, 4) = ?
+      GROUP BY b.id, c.name, c.icon, c.color
+      ORDER BY (COALESCE(SUM(t.amount), 0) / b.monthly_limit) DESC
+    `, [m, y]);
 
-  res.json(budgets);
-});
-
-app.post('/api/budgets', authenticate, (req, res) => {
-  const { category_id, monthly_limit } = req.body;
-  const db = getDb();
-
-  // Upsert — update if exists, insert if not
-  const existing = db.get('SELECT id FROM budgets WHERE category_id = ?', [category_id]);
-  if (existing) {
-    db.run('UPDATE budgets SET monthly_limit = ? WHERE category_id = ?', [monthly_limit, category_id]);
-  } else {
-    db.run('INSERT INTO budgets (category_id, monthly_limit) VALUES (?, ?)', [category_id, monthly_limit]);
+    res.json(budgets);
+  } catch (err) {
+    res.status(500).json({ error: 'Erro interno' });
   }
-
-  const budget = db.get(`
-    SELECT b.*, c.name as category_name, c.icon as category_icon, c.color as category_color
-    FROM budgets b JOIN categories c ON b.category_id = c.id
-    WHERE b.category_id = ?
-  `, [category_id]);
-
-  res.json(budget);
 });
 
-app.delete('/api/budgets/:id', authenticate, (req, res) => {
-  getDb().run('DELETE FROM budgets WHERE id = ?', [parseInt(req.params.id)]);
-  res.json({ success: true });
+app.post('/api/budgets', authenticate, async (req, res) => {
+  try {
+    const { category_id, monthly_limit } = req.body;
+    const db = getDb();
+
+    const existing = await db.get('SELECT id FROM budgets WHERE category_id = ?', [category_id]);
+    if (existing) {
+      await db.run('UPDATE budgets SET monthly_limit = ? WHERE category_id = ?', [monthly_limit, category_id]);
+    } else {
+      await db.run('INSERT INTO budgets (category_id, monthly_limit) VALUES (?, ?)', [category_id, monthly_limit]);
+    }
+
+    const budget = await db.get(`
+      SELECT b.*, c.name as category_name, c.icon as category_icon, c.color as category_color
+      FROM budgets b JOIN categories c ON b.category_id = c.id
+      WHERE b.category_id = ?
+    `, [category_id]);
+
+    res.json(budget);
+  } catch (err) {
+    res.status(500).json({ error: 'Erro interno' });
+  }
+});
+
+app.delete('/api/budgets/:id', authenticate, async (req, res) => {
+  try {
+    await getDb().run('DELETE FROM budgets WHERE id = ?', [parseInt(req.params.id)]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Erro interno' });
+  }
 });
 
 // ============ LOGS ============
 
-app.get('/api/logs', authenticate, (req, res) => {
-  const db = getDb();
-  const logs = db.all(`
-    SELECT l.*, u.username, u.avatar_color
-    FROM activity_logs l
-    JOIN users u ON l.user_id = u.id
-    ORDER BY l.created_at DESC
-    LIMIT 200
-  `);
-  res.json(logs);
+app.get('/api/logs', authenticate, async (req, res) => {
+  try {
+    const db = getDb();
+    const logs = await db.all(`
+      SELECT l.*, u.username, u.avatar_color
+      FROM activity_logs l
+      JOIN users u ON l.user_id = u.id
+      ORDER BY l.created_at DESC
+      LIMIT 200
+    `);
+    res.json(logs);
+  } catch (err) {
+    res.status(500).json({ error: 'Erro interno' });
+  }
 });
 
 // ============ SUMMARY ============
 
-app.get('/api/summary', authenticate, (req, res) => {
-  const { month, year } = req.query;
-  const db = getDb();
-  const m = (month || (new Date().getMonth() + 1).toString()).padStart(2, '0');
-  const y = year || new Date().getFullYear().toString();
+app.get('/api/summary', authenticate, async (req, res) => {
+  try {
+    const { month, year } = req.query;
+    const db = getDb();
+    const m = (month || (new Date().getMonth() + 1).toString()).padStart(2, '0');
+    const y = year || new Date().getFullYear().toString();
 
-  const totals = db.all(`
-    SELECT type, SUM(amount) as total FROM transactions
-    WHERE substr(date, 6, 2) = ? AND substr(date, 1, 4) = ? GROUP BY type
-  `, [m, y]);
+    const [totals, perUser, byCategory, fixedRow] = await Promise.all([
+      db.all(`
+        SELECT type, SUM(amount) as total FROM transactions
+        WHERE substr(date, 6, 2) = ? AND substr(date, 1, 4) = ? GROUP BY type
+      `, [m, y]),
+      db.all(`
+        SELECT u.id, u.username, u.avatar_color, t.type, SUM(t.amount) as total
+        FROM transactions t JOIN users u ON t.user_id = u.id
+        WHERE substr(t.date, 6, 2) = ? AND substr(t.date, 1, 4) = ?
+        GROUP BY u.id, u.username, u.avatar_color, t.type
+      `, [m, y]),
+      db.all(`
+        SELECT c.id, c.name, c.icon, c.color, t.type, SUM(t.amount) as total
+        FROM transactions t JOIN categories c ON t.category_id = c.id
+        WHERE substr(t.date, 6, 2) = ? AND substr(t.date, 1, 4) = ?
+        GROUP BY c.id, c.name, c.icon, c.color, t.type ORDER BY total DESC
+      `, [m, y]),
+      db.get('SELECT SUM(amount) as total FROM fixed_expenses WHERE active = 1')
+    ]);
 
-  const perUser = db.all(`
-    SELECT u.id, u.username, u.avatar_color, t.type, SUM(t.amount) as total
-    FROM transactions t JOIN users u ON t.user_id = u.id
-    WHERE substr(t.date, 6, 2) = ? AND substr(t.date, 1, 4) = ?
-    GROUP BY u.id, t.type
-  `, [m, y]);
-
-  const byCategory = db.all(`
-    SELECT c.id, c.name, c.icon, c.color, t.type, SUM(t.amount) as total
-    FROM transactions t JOIN categories c ON t.category_id = c.id
-    WHERE substr(t.date, 6, 2) = ? AND substr(t.date, 1, 4) = ?
-    GROUP BY c.id, t.type ORDER BY total DESC
-  `, [m, y]);
-
-  const fixedRow = db.get('SELECT SUM(amount) as total FROM fixed_expenses WHERE active = 1');
-
-  res.json({
-    month: m, year: y,
-    totals: {
-      income: totals.find(t => t.type === 'income')?.total || 0,
-      expenses: totals.find(t => t.type === 'expense')?.total || 0
-    },
-    perUser, byCategory,
-    fixedExpensesTotal: fixedRow?.total || 0
-  });
+    res.json({
+      month: m, year: y,
+      totals: {
+        income: totals.find(t => t.type === 'income')?.total || 0,
+        expenses: totals.find(t => t.type === 'expense')?.total || 0
+      },
+      perUser, byCategory,
+      fixedExpensesTotal: fixedRow?.total || 0
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Erro interno' });
+  }
 });
 
 app.get('*', (req, res) => {
